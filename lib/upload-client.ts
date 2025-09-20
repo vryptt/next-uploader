@@ -141,8 +141,8 @@ export class FileUploadClient {
       link.click();
       document.body.removeChild(link);
       return true;
-    } catch (error) {
-      console.error('Download failed:', error);
+    } catch (err) {
+      console.error('Download failed:', err);
       return false;
     }
   }
