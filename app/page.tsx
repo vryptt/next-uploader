@@ -1,103 +1,208 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
+import { useState } from 'react';
+import FileUpload from '@/components/FileUpload';
+import { FileUploadClient, FileInfo } from '@/lib/upload-client';
+import { UploadResponse } from '@/lib/upload-client';
+
+export default function HomePage() {
+  const [uploadedFiles, setUploadedFiles] = useState<FileInfo[]>([]);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  
+  const uploadClient = new FileUploadClient();
+
+  const handleUploadSuccess = (response: UploadResponse) => {
+    if (response.data) {
+      const newFile: FileInfo = {
+        ...response.data,
+        isExpired: false
+      };
+      setUploadedFiles(prev => [newFile, ...prev]);
+      setMessage({ type: 'success', text: 'File berhasil diupload!' });
+    }
+  };
+
+  const handleUploadError = (error: string) => {
+    setMessage({ type: 'error', text: error });
+  };
+
+  const handleDownload = async (file: FileInfo) => {
+    const success = await uploadClient.downloadFile(file.id, file.originalName);
+    if (!success) {
+      setMessage({ type: 'error', text: 'Gagal mendownload file' });
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleString('id-ID');
+  };
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="max-w-4xl mx-auto px-4">
+        <header className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            File Upload Service
+          </h1>
+          <p className="text-gray-600">
+            Upload file dengan keamanan dan fitur lengkap
+          </p>
+        </header>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
+        {/* Alert Message */}
+        {message && (
+          <div className={`mb-6 p-4 rounded-md ${
+            message.type === 'success' 
+              ? 'bg-green-50 text-green-800 border border-green-200' 
+              : 'bg-red-50 text-red-800 border border-red-200'
+          }`}>
+            <div className="flex justify-between items-center">
+              <span>{message.text}</span>
+              <button 
+                onClick={() => setMessage(null)}
+                className="text-sm underline"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="grid md:grid-cols-2 gap-8">
+          {/* Upload Component */}
+          <div>
+            <h2 className="text-xl font-semibold mb-4">Upload File</h2>
+            <FileUpload 
+              onUploadSuccess={handleUploadSuccess}
+              onUploadError={handleUploadError}
             />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+          </div>
+
+          {/* File List */}
+          <div>
+            <h2 className="text-xl font-semibold mb-4">File Terakhir</h2>
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {uploadedFiles.length === 0 ? (
+                <p className="text-gray-500 text-center py-8">
+                  Belum ada file yang diupload
+                </p>
+              ) : (
+                uploadedFiles.map((file) => (
+                  <div key={file.id} className="bg-white p-4 rounded-lg shadow-sm border">
+                    <div className="flex justify-between items-start mb-2">
+                      <h3 className="font-medium text-gray-900 truncate">
+                        {file.originalName}
+                      </h3>
+                      <span className={`text-xs px-2 py-1 rounded ${
+                        file.isExpired 
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-green-100 text-green-800'
+                      }`}>
+                        {file.isExpired ? 'Expired' : 'Active'}
+                      </span>
+                    </div>
+                    
+                    <div className="text-sm text-gray-600 space-y-1">
+                      <p>Ukuran: {uploadClient.formatFileSize(file.size)}</p>
+                      <p>Upload: {formatDate(file.uploadedAt)}</p>
+                      {file.expiresAt && (
+                        <p>Expires: {formatDate(file.expiresAt)}</p>
+                      )}
+                    </div>
+
+                    <div className="mt-3 flex space-x-2">
+                      <button
+                        onClick={() => handleDownload(file)}
+                        disabled={file.isExpired}
+                        className={`px-3 py-1 text-sm rounded ${
+                          file.isExpired
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            : 'bg-blue-100 text-blue-800 hover:bg-blue-200'
+                        }`}
+                      >
+                        Download
+                      </button>
+                      <button
+                        onClick={() => navigator.clipboard.writeText(file.downloadUrl)}
+                        className="px-3 py-1 text-sm bg-gray-100 text-gray-800 hover:bg-gray-200 rounded"
+                      >
+                        Copy Link
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+
+        {/* API Documentation */}
+        <div className="mt-12 bg-white rounded-lg shadow-sm p-6">
+          <h2 className="text-xl font-semibold mb-4">API Documentation</h2>
+          
+          <div className="space-y-6">
+            {/* Upload Endpoint */}
+            <div>
+              <h3 className="font-medium text-gray-900 mb-2">POST /api/upload</h3>
+              <p className="text-sm text-gray-600 mb-2">Upload file baru</p>
+              
+              <div className="bg-gray-50 p-3 rounded text-sm">
+                <p><strong>Content-Type:</strong> multipart/form-data</p>
+                <p><strong>Body:</strong></p>
+                <ul className="list-disc list-inside ml-4 mt-1">
+                  <li>file: File (required)</li>
+                  <li>duration: string (optional, default: "7days")</li>
+                </ul>
+              </div>
+
+              <div className="mt-2">
+                <p className="text-sm font-medium">Contoh Response:</p>
+                <pre className="bg-gray-900 text-gray-100 p-3 rounded text-xs mt-1 overflow-x-auto">
+{JSON.stringify({
+  "success": true,
+  "data": {
+    "id": "abc123...",
+    "originalName": "document.pdf",
+    "size": 1024000,
+    "mimeType": "application/pdf",
+    "extension": ".pdf",
+    "uploadedAt": "2024-01-01T00:00:00.000Z",
+    "expiresAt": "2024-01-08T00:00:00.000Z",
+    "downloadUrl": "http://localhost:3000/api/download/abc123...",
+    "duration": "7days"
+  },
+  "message": "File uploaded successfully"
+}, null, 2)}
+                </pre>
+              </div>
+            </div>
+
+            {/* Download Endpoint */}
+            <div>
+              <h3 className="font-medium text-gray-900 mb-2">GET /api/download/[id]</h3>
+              <p className="text-sm text-gray-600 mb-2">Download file berdasarkan ID</p>
+              
+              <div className="bg-gray-50 p-3 rounded text-sm">
+                <p><strong>Response:</strong> File binary atau error JSON</p>
+              </div>
+            </div>
+
+            {/* List Files Endpoint */}
+            <div>
+              <h3 className="font-medium text-gray-900 mb-2">GET /api/upload</h3>
+              <p className="text-sm text-gray-600 mb-2">List semua file (dengan pagination)</p>
+              
+              <div className="bg-gray-50 p-3 rounded text-sm">
+                <p><strong>Query Parameters:</strong></p>
+                <ul className="list-disc list-inside ml-4 mt-1">
+                  <li>page: number (default: 1)</li>
+                  <li>limit: number (default: 10, max: 100)</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
