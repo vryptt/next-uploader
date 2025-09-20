@@ -19,11 +19,11 @@ interface FileMetadata {
 }
 
 const ALLOWED_EXTENSIONS = [
-  '.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg',
-  '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
-  '.txt', '.csv', '.json', '.xml',
-  '.zip', '.rar', '.7z',
-  '.mp3', '.mp4', '.avi', '.mov', '.wav',
+  '.jpg','.jpeg','.png','.gif','.webp','.svg',
+  '.pdf','.doc','.docx','.xls','.xlsx','.ppt','.pptx',
+  '.txt','.csv','.json','.xml',
+  '.zip','.rar','.7z',
+  '.mp3','.mp4','.avi','.mov','.wav',
 ];
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -40,34 +40,29 @@ const DURATION_OPTIONS = {
 };
 
 const uploadSchema = z.object({
-  duration: z.enum(['1hour', '6hours', '12hours', '1day', '7days', '14days', '30days', 'unlimited']).optional().default('7days')
+  duration: z.enum(['1hour','6hours','12hours','1day','7days','14days','30days','unlimited']).optional().default('7days')
 });
 
 const fileStorage = new Map<string, FileMetadata>();
 
-function generateId(): string {
+function generateId() {
   return crypto.randomBytes(16).toString('hex');
 }
-
-function sanitizeFileName(fileName: string): string {
+function sanitizeFileName(fileName: string) {
   return fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
 }
-
-function getFileExtension(fileName: string): string {
+function getFileExtension(fileName: string) {
   return path.extname(fileName).toLowerCase();
 }
-
-function isValidFileType(extension: string): boolean {
+function isValidFileType(extension: string) {
   return ALLOWED_EXTENSIONS.includes(extension);
 }
-
-function calculateExpiryDate(duration: keyof typeof DURATION_OPTIONS): Date | null {
-  const durationMs = DURATION_OPTIONS[duration];
-  if (durationMs === null) return null;
-  return new Date(Date.now() + durationMs);
+function calculateExpiryDate(duration: keyof typeof DURATION_OPTIONS) {
+  const ms = DURATION_OPTIONS[duration];
+  if (ms === null) return null;
+  return new Date(Date.now() + ms);
 }
-
-async function ensureUploadDir(): Promise<string> {
+async function ensureUploadDir() {
   const uploadDir = path.join(process.cwd(), 'uploads');
   if (!existsSync(uploadDir)) {
     await mkdir(uploadDir, { recursive: true });
@@ -82,70 +77,33 @@ export async function POST(request: NextRequest) {
     const durationParam = formData.get('duration') as string;
 
     if (!file) {
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: 'No file provided',
-          code: 'NO_FILE'
-        }, 
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, error: 'No file provided', code: 'NO_FILE' }, { status: 400 });
     }
 
     if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: `File size exceeds maximum limit of ${MAX_FILE_SIZE / 1024 / 1024}MB`,
-          code: 'FILE_TOO_LARGE'
-        }, 
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, error: `Max size ${MAX_FILE_SIZE/1024/1024}MB`, code: 'FILE_TOO_LARGE' }, { status: 400 });
     }
 
     const extension = getFileExtension(file.name);
     if (!isValidFileType(extension)) {
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: `File type ${extension} is not allowed`,
-          code: 'INVALID_FILE_TYPE',
-          allowedTypes: ALLOWED_EXTENSIONS
-        }, 
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, error: `File type ${extension} not allowed`, code: 'INVALID_FILE_TYPE' }, { status: 400 });
     }
 
-    const validationResult = uploadSchema.safeParse({ 
-      duration: durationParam || 'undefined' 
-    });
-    
+    const validationResult = uploadSchema.safeParse({ duration: durationParam || 'undefined' });
     if (!validationResult.success) {
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: 'Invalid duration parameter',
-          code: 'INVALID_DURATION',
-          allowedDurations: Object.keys(DURATION_OPTIONS)
-        }, 
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, error: 'Invalid duration', code: 'INVALID_DURATION', allowed: Object.keys(DURATION_OPTIONS) }, { status: 400 });
     }
 
     const { duration } = validationResult.data;
-
     const fileId = generateId();
-    const sanitizedName = sanitizeFileName(file.name);
-    const fileName = `${fileId}_${sanitizedName}`;
+    const fileName = `${fileId}_${sanitizeFileName(file.name)}`;
     const uploadDir = await ensureUploadDir();
     const filePath = path.join(uploadDir, fileName);
     const expiresAt = calculateExpiryDate(duration);
 
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
+    const buffer = Buffer.from(await file.arrayBuffer());
     await writeFile(filePath, buffer);
 
-    // Create metadata
     const metadata: FileMetadata = {
       id: fileId,
       originalName: file.name,
@@ -158,35 +116,42 @@ export async function POST(request: NextRequest) {
       downloadUrl: `/api/download/${fileId}`,
       path: filePath
     };
-
-    // Store metadata (dalam production, simpan ke database)
     fileStorage.set(fileId, metadata);
 
-    // Response success
     return NextResponse.json({
       success: true,
       data: {
-        id: metadata.id,
-        originalName: metadata.originalName,
-        size: metadata.size,
-        mimeType: metadata.mimeType,
-        extension: metadata.extension,
-        uploadedAt: metadata.uploadedAt,
-        expiresAt: metadata.expiresAt,
+        ...metadata,
         downloadUrl: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}${metadata.downloadUrl}`,
-        duration: duration
+        duration
       },
       message: 'File uploaded successfully'
     });
-
-  } catch (error) {
-    console.error('Upload error:', error);
-    return NextResponse.json(
-      { 
-        success: false, 
-        error: 'Internal server error',
-        code: 'INTERNAL_ERROR'
-      }, 
-      { status: 500 }
-    );
+  } catch (err) {
+    console.error('Upload error:', err);
+    return NextResponse.json({ success: false, error: 'Internal server error', code: 'INTERNAL_ERROR' }, { status: 500 });
   }
+}
+
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const limit = parseInt(searchParams.get('limit') || '10');
+  const page = parseInt(searchParams.get('page') || '1');
+
+  const now = new Date();
+  const validFiles = Array.from(fileStorage.values()).filter(f => !f.expiresAt || f.expiresAt > now);
+
+  const start = (page - 1) * limit;
+  const data = validFiles.slice(start, start + limit);
+
+  return NextResponse.json({
+    success: true,
+    data: data.map(f => ({
+      ...f,
+      downloadUrl: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}${f.downloadUrl}`
+    })),
+    pagination: { page, limit, total: validFiles.length }
+  });
+}
+
+export { fileStorage };
