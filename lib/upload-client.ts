@@ -67,6 +67,7 @@ export class FileUploadClient {
             resolve(response);
           } catch (error) {
             reject(new Error('Invalid JSON response'));
+            console.error(error)
           }
         });
 
